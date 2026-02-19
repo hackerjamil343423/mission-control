@@ -1,6 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.NEON_DATABASE_URL!);
+
+interface Task {
+  id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  assignee: string;
+  priority: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Content {
+  id: number;
+  title: string;
+  stage: string;
+  script: string | null;
+  thumbnail_url: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CalendarEvent {
+  id: number;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  type: string;
+  completed: boolean;
+  created_at: string;
+}
+
+interface Memory {
+  id: number;
+  title: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface TeamMember {
+  id: number;
+  name: string;
+  role: string;
+  status: string;
+  avatar: string | null;
+  description: string | null;
+}
+
+const contentStages = ["idea", "scripting", "thumbnail", "filming", "editing", "published"];
 
 const styles: Record<string, React.CSSProperties> = {
   container: { padding: "24px", minHeight: "100vh" },
@@ -13,7 +68,6 @@ const styles: Record<string, React.CSSProperties> = {
   cardTitle: { fontSize: "1.5rem", fontWeight: "bold", color: "#fff", marginBottom: "16px" },
   input: { flex: 1, backgroundColor: "#1f2937", color: "#fff", padding: "8px 16px", borderRadius: "8px", border: "1px solid #374151" },
   button: { padding: "8px 24px", borderRadius: "8px", cursor: "pointer", border: "none", fontWeight: "500" },
-  grid: { display: "grid", gap: "16px" },
 };
 
 export default function MissionControl() {
@@ -21,31 +75,12 @@ export default function MissionControl() {
   const [searchQuery, setSearchQuery] = useState("");
   const [newTask, setNewTask] = useState("");
   const [newContent, setNewContent] = useState("");
-  const [tasks, setTasks] = useState([
-    { _id: "1", title: "Morning tweet thread", status: "in_progress", assignee: "oto", priority: "high" },
-    { _id: "2", title: "Review EBS emails", status: "todo", assignee: "jamil", priority: "medium" },
-    { _id: "3", title: "Update CRM idea", status: "done", assignee: "jamil", priority: "low" },
-  ]);
-  const [content, setContent] = useState([
-    { _id: "1", title: "AI Tools Video", stage: "scripting" },
-    { _id: "2", title: "Automation Tips", stage: "idea" },
-    { _id: "3", title: "n8n Tutorial", stage: "filming" },
-  ]);
-  const [calendar] = useState([
-    { _id: "1", title: "Morning message to Jamil", time: new Date(Date.now() + 3600000), type: "cron", completed: false },
-    { _id: "2", title: "Check emails", time: new Date(Date.now() + 7200000), type: "task", completed: false },
-  ]);
-  const [memories] = useState([
-    { _id: "1", title: "Project kickoff", content: "OTO Reach launched...", tags: ["project", "launch"] },
-    { _id: "2", title: "Marketing strategy", content: "Focus on Twitter...", tags: ["marketing", "social"] },
-  ]);
-  const [team] = useState([
-    { _id: "1", name: "Oto", role: "Main Assistant", status: "working", emoji: "🤖" },
-    { _id: "2", name: "Social Media Copywriter", role: "Content Creator", status: "idle", emoji: "✍️" },
-    { _id: "3", name: "Research Agent", role: "Researcher", status: "active", emoji: "🔍" },
-  ]);
-
-  const contentStages = ["idea", "scripting", "thumbnail", "filming", "editing", "published"];
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [content, setContent] = useState<Content[]>([]);
+  const [calendar, setCalendar] = useState<CalendarEvent[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const tabs = [
     { id: "tasks", label: "📋 Tasks", color: "#3b82f6" },
@@ -56,16 +91,59 @@ export default function MissionControl() {
     { id: "office", label: "🏢 Office", color: "#f97316" },
   ];
 
-  const addTask = () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    try {
+      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+      const db = neon(NEON_DATABASE_URL);
+      
+      const [tasksData, contentData, calendarData, memoriesData, teamData] = await Promise.all([
+        db("SELECT * FROM tasks ORDER BY created_at DESC"),
+        db("SELECT * FROM content ORDER BY created_at DESC"),
+        db("SELECT * FROM calendar ORDER BY scheduled_at ASC"),
+        db("SELECT * FROM memories ORDER BY created_at DESC"),
+        db("SELECT * FROM team")
+      ]);
+      
+      setTasks(tasksData);
+      setContent(contentData);
+      setCalendar(calendarData);
+      setMemories(memoriesData);
+      setTeam(teamData);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const addTask = async () => {
     if (!newTask.trim()) return;
-    setTasks([...tasks, { _id: Date.now().toString(), title: newTask, status: "todo", assignee: "jamil", priority: "medium" }]);
-    setNewTask("");
+    try {
+      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+      const db = neon(NEON_DATABASE_URL);
+      await db("INSERT INTO tasks (title, status, assignee) VALUES ($1, 'todo', 'jamil')", [newTask]);
+      setNewTask("");
+      fetchData();
+    } catch (error) {
+      console.error("Error adding task:", error);
+    }
   };
 
-  const addContent = () => {
+  const addContent = async () => {
     if (!newContent.trim()) return;
-    setContent([...content, { _id: Date.now().toString(), title: newContent, stage: "idea" }]);
-    setNewContent("");
+    try {
+      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+      const db = neon(NEON_DATABASE_URL);
+      await db("INSERT INTO content (title, stage) VALUES ($1, 'idea')", [newContent]);
+      setNewContent("");
+      fetchData();
+    } catch (error) {
+      console.error("Error adding content:", error);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -77,13 +155,13 @@ export default function MissionControl() {
     return colors[status] || "#6b7280";
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string | null) => {
     const colors: Record<string, string> = {
       high: "#f87171",
       medium: "#fbbf24",
       low: "#34d399",
     };
-    return colors[priority] || "#9ca3af";
+    return colors[priority || ""] || "#9ca3af";
   };
 
   const getTeamStatusColor = (status: string) => {
@@ -95,11 +173,22 @@ export default function MissionControl() {
     return colors[status] || "#6b7280";
   };
 
+  if (loading) {
+    return (
+      <div style={{ ...styles.container, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "2rem", marginBottom: "16px" }}>⏳</div>
+          <p style={{ color: "#9ca3af" }}>Loading Mission Control...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <header style={styles.header}>
         <h1 style={styles.title}>🎯 Mission Control</h1>
-        <p style={styles.subtitle}>Track everything Oto is working on</p>
+        <p style={styles.subtitle}>Track everything Oto is working on • Connected to Neon DB</p>
       </header>
 
       <div style={styles.tabsContainer}>
@@ -141,12 +230,12 @@ export default function MissionControl() {
             {(["todo", "in_progress", "done"] as const).map((status) => (
               <div key={status} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px" }}>
                 <h3 style={{ fontWeight: "bold", color: "#fff", marginBottom: "12px", textTransform: "capitalize" }}>
-                  {status.replace("_", " ")}
+                  {status.replace("_", " ")} ({tasks.filter((t) => t.status === status).length})
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {tasks.filter((t) => t.status === status).map((task) => (
                     <div
-                      key={task._id}
+                      key={task.id}
                       style={{
                         backgroundColor: "#1f2937",
                         borderRadius: "8px",
@@ -156,7 +245,9 @@ export default function MissionControl() {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={{ color: "#fff", fontWeight: "500" }}>{task.title}</span>
-                        <span style={{ fontSize: "12px", color: getPriorityColor(task.priority) }}>{task.priority}</span>
+                        <span style={{ fontSize: "12px", color: getPriorityColor(task.priority) }}>
+                          {task.priority || ""}
+                        </span>
                       </div>
                       <div style={{ marginTop: "8px", fontSize: "12px", color: "#9ca3af" }}>
                         {task.assignee === "jamil" ? "👤 Jamil" : "🤖 Oto"}
@@ -193,12 +284,12 @@ export default function MissionControl() {
             {contentStages.map((stage) => (
               <div key={stage} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "12px", minHeight: "200px" }}>
                 <h3 style={{ fontWeight: "bold", color: "#fff", fontSize: "14px", marginBottom: "12px", textTransform: "capitalize" }}>
-                  {stage}
+                  {stage} ({content.filter((c) => c.stage === stage).length})
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {content.filter((c) => c.stage === stage).map((item) => (
                     <div
-                      key={item._id}
+                      key={item.id}
                       style={{
                         backgroundColor: "#1f2937",
                         borderRadius: "8px",
@@ -223,7 +314,7 @@ export default function MissionControl() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {calendar.map((event) => (
               <div
-                key={event._id}
+                key={event.id}
                 style={{
                   backgroundColor: "#111827",
                   borderRadius: "8px",
@@ -236,24 +327,25 @@ export default function MissionControl() {
                 <div>
                   <h3 style={{ color: "#fff", fontWeight: "500" }}>{event.title}</h3>
                   <p style={{ color: "#9ca3af", fontSize: "14px" }}>
-                    {event.time.toLocaleString()} • {event.type}
+                    {new Date(event.scheduled_at).toLocaleString()} • {event.type}
                   </p>
                 </div>
-                <button
+                <span
                   style={{
                     padding: "8px 16px",
                     borderRadius: "8px",
                     backgroundColor: event.completed ? "#10b981" : "#4b5563",
                     color: "#fff",
                     fontSize: "14px",
-                    border: "none",
-                    cursor: "pointer",
                   }}
                 >
                   {event.completed ? "✓ Done" : "○ Pending"}
-                </button>
+                </span>
               </div>
             ))}
+            {calendar.length === 0 && (
+              <p style={{ color: "#6b7280", textAlign: "center", padding: "32px" }}>No scheduled events</p>
+            )}
           </div>
         </div>
       )}
@@ -277,11 +369,11 @@ export default function MissionControl() {
                   m.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
               )
               .map((memory) => (
-                <div key={memory._id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px" }}>
+                <div key={memory.id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px" }}>
                   <h3 style={{ color: "#fff", fontWeight: "bold", marginBottom: "8px" }}>{memory.title}</h3>
                   <p style={{ color: "#9ca3af", fontSize: "14px", marginBottom: "12px" }}>{memory.content}</p>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    {memory.tags.map((tag) => (
+                    {(memory.tags || []).map((tag) => (
                       <span
                         key={tag}
                         style={{
@@ -308,7 +400,7 @@ export default function MissionControl() {
           <p style={{ color: "#9ca3af", marginBottom: "16px" }}>Your agents and sub-agents</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "16px" }}>
             {team.map((member) => (
-              <div key={member._id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px" }}>
+              <div key={member.id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
                   <div
                     style={{
@@ -322,14 +414,15 @@ export default function MissionControl() {
                       fontSize: "24px",
                     }}
                   >
-                    {member.emoji}
+                    {member.avatar || "🤖"}
                   </div>
                   <div>
                     <h3 style={{ color: "#fff", fontWeight: "bold" }}>{member.name}</h3>
                     <p style={{ color: "#9ca3af", fontSize: "14px" }}>{member.role}</p>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <p style={{ color: "#6b7280", fontSize: "13px" }}>{member.description}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "12px" }}>
                   <div
                     style={{
                       width: "8px",
@@ -352,7 +445,7 @@ export default function MissionControl() {
           <p style={{ color: "#9ca3af", marginBottom: "16px" }}>Watch your agents work in real-time</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px" }}>
             {team.map((member) => (
-              <div key={member._id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px", textAlign: "center" }}>
+              <div key={member.id} style={{ backgroundColor: "#111827", borderRadius: "8px", padding: "16px", textAlign: "center" }}>
                 <div
                   style={{
                     width: "80px",
@@ -385,7 +478,6 @@ export default function MissionControl() {
                           height: "100%",
                           backgroundColor: "#10b981",
                           width: "60%",
-                          animation: "pulse 1s infinite",
                         }}
                       ></div>
                     </div>
