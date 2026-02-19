@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { neon } from "@neondatabase/serverless";
 
 interface Task {
   id: number;
@@ -95,16 +94,8 @@ export default function MissionControl() {
 
   async function fetchData() {
     try {
-      const db = neon(process.env.NEON_DATABASE_URL!);
-      
-      const [tasksData, contentData, calendarData, memoriesData, teamData] = await Promise.all([
-        db`SELECT * FROM tasks ORDER BY created_at DESC`,
-        db`SELECT * FROM content ORDER BY created_at DESC`,
-        db`SELECT * FROM calendar ORDER BY scheduled_at ASC`,
-        db`SELECT * FROM memories ORDER BY created_at DESC`,
-        db`SELECT * FROM team`,
-      ]);
-      
+      const res = await fetch("/api/data");
+      const { tasksData, contentData, calendarData, memoriesData, teamData } = await res.json();
       setTasks(tasksData as Task[]);
       setContent(contentData as Content[]);
       setCalendar(calendarData as CalendarEvent[]);
@@ -120,8 +111,7 @@ export default function MissionControl() {
   const addTask = async () => {
     if (!newTask.trim()) return;
     try {
-      const db = neon(process.env.NEON_DATABASE_URL!);
-      await db`INSERT INTO tasks (title, status, assignee) VALUES (${newTask}, 'todo', 'jamil')`;
+      await fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: newTask }) });
       setNewTask("");
       fetchData();
     } catch (error) {
@@ -132,8 +122,7 @@ export default function MissionControl() {
   const addContent = async () => {
     if (!newContent.trim()) return;
     try {
-      const db = neon(process.env.NEON_DATABASE_URL!);
-      await db`INSERT INTO content (title, stage) VALUES (${newContent}, 'idea')`;
+      await fetch("/api/content", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: newContent }) });
       setNewContent("");
       fetchData();
     } catch (error) {
