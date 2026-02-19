@@ -97,8 +97,7 @@ export default function MissionControl() {
 
   async function fetchData() {
     try {
-      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
-      const db = neon(NEON_DATABASE_URL);
+      const db = neon(process.env.NEON_DATABASE_URL!);
       
       const [tasksData, contentData, calendarData, memoriesData, teamData] = await Promise.all([
         db("SELECT * FROM tasks ORDER BY created_at DESC"),
@@ -123,8 +122,7 @@ export default function MissionControl() {
   const addTask = async () => {
     if (!newTask.trim()) return;
     try {
-      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
-      const db = neon(NEON_DATABASE_URL);
+      const db = neon(process.env.NEON_DATABASE_URL!);
       await db("INSERT INTO tasks (title, status, assignee) VALUES ($1, 'todo', 'jamil')", [newTask]);
       setNewTask("");
       fetchData();
@@ -136,8 +134,7 @@ export default function MissionControl() {
   const addContent = async () => {
     if (!newContent.trim()) return;
     try {
-      const NEON_DATABASE_URL = "postgresql://neondb_owner:npg_GS20nVEkYwjH@ep-gentle-fog-aitx6ob9-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
-      const db = neon(NEON_DATABASE_URL);
+      const db = neon(process.env.NEON_DATABASE_URL!);
       await db("INSERT INTO content (title, stage) VALUES ($1, 'idea')", [newContent]);
       setNewContent("");
       fetchData();
