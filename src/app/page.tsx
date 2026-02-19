@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.NEON_DATABASE_URL!);
-
 interface Task {
   id: number;
   title: string;
@@ -100,18 +98,18 @@ export default function MissionControl() {
       const db = neon(process.env.NEON_DATABASE_URL!);
       
       const [tasksData, contentData, calendarData, memoriesData, teamData] = await Promise.all([
-        db("SELECT * FROM tasks ORDER BY created_at DESC"),
-        db("SELECT * FROM content ORDER BY created_at DESC"),
-        db("SELECT * FROM calendar ORDER BY scheduled_at ASC"),
-        db("SELECT * FROM memories ORDER BY created_at DESC"),
-        db("SELECT * FROM team")
+        db`SELECT * FROM tasks ORDER BY created_at DESC`,
+        db`SELECT * FROM content ORDER BY created_at DESC`,
+        db`SELECT * FROM calendar ORDER BY scheduled_at ASC`,
+        db`SELECT * FROM memories ORDER BY created_at DESC`,
+        db`SELECT * FROM team`,
       ]);
       
-      setTasks(tasksData);
-      setContent(contentData);
-      setCalendar(calendarData);
-      setMemories(memoriesData);
-      setTeam(teamData);
+      setTasks(tasksData as Task[]);
+      setContent(contentData as Content[]);
+      setCalendar(calendarData as CalendarEvent[]);
+      setMemories(memoriesData as Memory[]);
+      setTeam(teamData as TeamMember[]);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -123,7 +121,7 @@ export default function MissionControl() {
     if (!newTask.trim()) return;
     try {
       const db = neon(process.env.NEON_DATABASE_URL!);
-      await db("INSERT INTO tasks (title, status, assignee) VALUES ($1, 'todo', 'jamil')", [newTask]);
+      await db`INSERT INTO tasks (title, status, assignee) VALUES (${newTask}, 'todo', 'jamil')`;
       setNewTask("");
       fetchData();
     } catch (error) {
@@ -135,7 +133,7 @@ export default function MissionControl() {
     if (!newContent.trim()) return;
     try {
       const db = neon(process.env.NEON_DATABASE_URL!);
-      await db("INSERT INTO content (title, stage) VALUES ($1, 'idea')", [newContent]);
+      await db`INSERT INTO content (title, stage) VALUES (${newContent}, 'idea')`;
       setNewContent("");
       fetchData();
     } catch (error) {
