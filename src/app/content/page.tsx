@@ -676,7 +676,7 @@ export default function ContentPage() {
 
   return (
     <>
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="flex flex-col h-screen bg-white overflow-hidden">
         {/* Header */}
         <header className="flex h-14 items-center gap-4 border-b border-[#E5E5E5] px-6 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
           <SidebarTrigger className="text-[#555] hover:text-[#111]" />
