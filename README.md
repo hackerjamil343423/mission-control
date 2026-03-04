@@ -28,15 +28,25 @@ Create `.env.local`:
 
 ```bash
 NEON_DATABASE_URL=postgresql://...
-OPENCLAW_TASK_WEBHOOK_URL=http://localhost:3000/api/openclaw/ingest-task
+
+# Internal dispatch endpoint in this app
+OPENCLAW_TASK_WEBHOOK_URL=https://mission-control-sandy-beta.vercel.app/api/openclaw/ingest-task
+
+# Direct OpenClaw bridge (preferred)
+OPENCLAW_BASE_URL=https://openclaw.otoreach.online
+OPENCLAW_GATEWAY_TOKEN=your_openclaw_gateway_token
+
+# Optional fallback bridge
 OPENCLAW_FORWARD_WEBHOOK_URL=https://your-openclaw-bridge-endpoint.example/webhook
+
+# Shared secret for webhook auth (optional)
 OPENCLAW_WEBHOOK_SECRET=your-shared-secret
 ```
 
 - `OPENCLAW_TASK_WEBHOOK_URL`: where Mission Control sends assigned tasks.
-- Recommended for local: point it to this app (`/api/openclaw/ingest-task`).
-- `OPENCLAW_FORWARD_WEBHOOK_URL` (optional): real bridge that hands off to OpenClaw automation.
-- `OPENCLAW_WEBHOOK_SECRET` (optional): added as `x-webhook-secret` for simple webhook auth.
+- `OPENCLAW_BASE_URL` + `OPENCLAW_GATEWAY_TOKEN`: Mission Control will call `<base>/v1/responses` and route to `agent:<assignee>`.
+- `OPENCLAW_FORWARD_WEBHOOK_URL` (optional): fallback if direct OpenClaw dispatch is unavailable.
+- `OPENCLAW_WEBHOOK_SECRET` (optional): sent as `x-webhook-secret` for simple webhook auth.
 
 ---
 

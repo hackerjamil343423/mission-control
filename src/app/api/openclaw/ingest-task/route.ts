@@ -24,7 +24,50 @@ export async function POST(req: NextRequest) {
   await db`INSERT INTO agent_activity (agent, action, task_id, details)
            VALUES (${task.assignee}, 'task_ingested', ${task.id}, ${task.title})`;
 
-  // Optional: forward to external OpenClaw automation endpoint (n8n, worker, gateway bridge, etc.)
+  // Preferred path: direct dispatch to OpenClaw gateway (/v1/responses)
+  const openclawBaseUrl = process.env.OPENCLAW_BASE_URL;
+  const openclawToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+
+  if (openclawBaseUrl && openclawToken) {
+    try {
+      const dispatchPrompt = [
+        "Mission Control assigned a task to you.",
+        `Task ID: ${task.id}`,
+        `Title: ${task.title}`,
+        `Description: ${task.description ?? "(none)"}`,
+        `Priority: ${task.priority ?? "(none)"}`,
+        `Assignee: ${task.assignee}`,
+        "Reply with a short acknowledgement and start execution.",
+      ].join("\n");
+
+      const res = await fetch(`${openclawBaseUrl.replace(/\/$/, "")}/v1/responses`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openclawToken}`,
+        },
+        body: JSON.stringify({
+          model: `agent:${task.assignee}`,
+          user: `mission-control-task-${task.id}`,
+          input: dispatchPrompt,
+        }),
+      });
+
+      const txt = await res.text();
+      await db`INSERT INTO agent_dispatch_log (task_id, assignee, status, response)
+               VALUES (${task.id}, ${task.assignee}, ${res.ok ? "openclaw_sent" : "openclaw_failed"}, ${txt.slice(0, 1000)})`;
+
+      if (res.ok) {
+        return NextResponse.json({ success: true, routed: "openclaw" });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "openclaw_dispatch_error";
+      await db`INSERT INTO agent_dispatch_log (task_id, assignee, status, response)
+               VALUES (${task.id}, ${task.assignee}, 'openclaw_failed', ${msg})`;
+    }
+  }
+
+  // Fallback path: forward to external bridge endpoint (n8n/worker/custom router)
   const forwardUrl = process.env.OPENCLAW_FORWARD_WEBHOOK_URL;
   if (forwardUrl) {
     try {
@@ -41,17 +84,17 @@ export async function POST(req: NextRequest) {
       await db`INSERT INTO agent_dispatch_log (task_id, assignee, status, response)
                VALUES (${task.id}, ${task.assignee}, ${res.ok ? "forwarded" : "forward_failed"}, ${txt.slice(0, 1000)})`;
 
-      return NextResponse.json({ success: true, forwarded: res.ok });
+      return NextResponse.json({ success: true, routed: "forward", forwarded: res.ok });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "forward_error";
       await db`INSERT INTO agent_dispatch_log (task_id, assignee, status, response)
                VALUES (${task.id}, ${task.assignee}, 'forward_failed', ${msg})`;
-      return NextResponse.json({ success: true, forwarded: false, error: msg });
+      return NextResponse.json({ success: true, routed: "none", forwarded: false, error: msg });
     }
   }
 
   await db`INSERT INTO agent_dispatch_log (task_id, assignee, status, response)
-           VALUES (${task.id}, ${task.assignee}, 'queued_local', 'No OPENCLAW_FORWARD_WEBHOOK_URL set')`;
+           VALUES (${task.id}, ${task.assignee}, 'queued_local', 'No OPENCLAW_BASE_URL/OPENCLAW_GATEWAY_TOKEN or OPENCLAW_FORWARD_WEBHOOK_URL set')`;
 
   return NextResponse.json({ success: true, queued: true });
 }
