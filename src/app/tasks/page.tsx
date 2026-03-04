@@ -32,6 +32,16 @@ import {
 } from "lucide-react";
 import type { Task } from "@/types";
 
+interface ActivityItem {
+  id: number;
+  agent: string;
+  action: string;
+  task_id: number | null;
+  task_title?: string | null;
+  details: string | null;
+  created_at: string;
+}
+
 /* ── Types ─────────────────────────────────────────────────── */
 type Status = "todo" | "in_progress" | "done";
 type Priority = "low" | "medium" | "high";
@@ -101,7 +111,7 @@ function TaskCard({
               )}
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 <span className="text-[10px] text-[#555555]">
-                  {task.assignee === "jamil" ? "👤 Jamil" : "🤖 Oto"}
+                  {task.assignee === "jamil" ? "👤 Jamil" : `🤖 ${task.assignee}`}
                 </span>
                 {task.priority && (
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${priorityBadge[task.priority]}`}>
@@ -284,15 +294,12 @@ function TaskModal({
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-[#555555]">Assignee</label>
-              <Select value={assignee} onValueChange={setAssignee}>
-                <SelectTrigger className="h-8 text-xs border-[#E5E5E5]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="jamil">👤 Jamil</SelectItem>
-                  <SelectItem value="oto">🤖 Oto</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                className="h-8 text-xs border-[#E5E5E5]"
+                placeholder="jamil, main, developer..."
+              />
             </div>
           </div>
 
@@ -334,9 +341,11 @@ export default function TasksPage() {
   });
   const [loading, setLoading] = useState(true);
   const [newTask, setNewTask] = useState("");
+  const [newAssignee, setNewAssignee] = useState("jamil");
   const [adding, setAdding] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -356,7 +365,19 @@ export default function TasksPage() {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetchTasks(); }, []);
+  const fetchActivity = () => {
+    fetch("/api/activity")
+      .then((r) => r.json())
+      .then((data: ActivityItem[]) => setActivity(data))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchTasks();
+    fetchActivity();
+    const id = setInterval(fetchActivity, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   /* DnD helpers */
   const findContainer = (id: string): Status | null => {
@@ -424,9 +445,12 @@ export default function TasksPage() {
     await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: newTask }),
+      body: JSON.stringify({ title: newTask, assignee: newAssignee }),
     });
-    setNewTask(""); setAdding(false); fetchTasks();
+    setNewTask("");
+    setAdding(false);
+    fetchTasks();
+    fetchActivity();
   };
 
   const saveTask = async (id: number, data: Partial<Task>) => {
@@ -436,11 +460,13 @@ export default function TasksPage() {
       body: JSON.stringify(data),
     });
     fetchTasks();
+    fetchActivity();
   };
 
   const deleteTask = async (id: number) => {
     await fetch(`/api/tasks/${id}`, { method: "DELETE" });
     fetchTasks();
+    fetchActivity();
   };
 
   const total = Object.values(items).flat().length;
@@ -453,13 +479,19 @@ export default function TasksPage() {
         <Separator orientation="vertical" className="h-5" />
         <CheckSquare className="w-4 h-4 text-[#D4F657]" style={{ filter: "drop-shadow(0 0 4px #D4F657)" }} />
         <span className="font-semibold text-[#111111] text-sm">Tasks</span>
-        <div className="ml-auto flex items-center gap-2 w-72">
+        <div className="ml-auto flex items-center gap-2 w-[520px]">
           <Input
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTask()}
             placeholder="Add new task…"
             className="h-8 text-sm border-[#E5E5E5] bg-white"
+          />
+          <Input
+            value={newAssignee}
+            onChange={(e) => setNewAssignee(e.target.value)}
+            placeholder="assignee (jamil, main, developer...)"
+            className="h-8 text-sm border-[#E5E5E5] bg-white w-56"
           />
           <Button
             onClick={addTask}
@@ -485,32 +517,58 @@ export default function TasksPage() {
             <Loader2 className="w-6 h-6 animate-spin text-[#555555]" />
           </div>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {columns.map((col) => (
-                <Column
-                  key={col.id}
-                  col={col}
-                  tasks={items[col.id]}
-                  onEdit={setEditTask}
-                  onDelete={deleteTask}
-                />
-              ))}
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
+            <div className="xl:col-span-3">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCorners}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {columns.map((col) => (
+                    <Column
+                      key={col.id}
+                      col={col}
+                      tasks={items[col.id]}
+                      onEdit={setEditTask}
+                      onDelete={deleteTask}
+                    />
+                  ))}
+                </div>
+
+                <DragOverlay>
+                  {activeTask && (
+                    <TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} overlay />
+                  )}
+                </DragOverlay>
+              </DndContext>
             </div>
 
-            {/* Ghost while dragging */}
-            <DragOverlay>
-              {activeTask && (
-                <TaskCard task={activeTask} onEdit={() => {}} onDelete={() => {}} overlay />
-              )}
-            </DragOverlay>
-          </DndContext>
+            <Card className="border-[#E5E5E5] h-fit">
+              <CardContent className="p-4">
+                <h3 className="text-sm font-semibold text-[#111111] mb-3">Live Activity Feed</h3>
+                <div className="space-y-2 max-h-[70vh] overflow-auto">
+                  {activity.length === 0 ? (
+                    <p className="text-xs text-[#555555]">No activity yet</p>
+                  ) : (
+                    activity.map((a) => (
+                      <div key={a.id} className="border border-[#F0F0F0] rounded-lg p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-[#111111]">{a.agent}</span>
+                          <span className="text-[10px] text-[#555555]">{new Date(a.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <p className="text-xs text-[#555555] mt-1">{a.action.replaceAll("_", " ")}</p>
+                        {a.task_title && <p className="text-xs text-[#111111] mt-1">{a.task_title}</p>}
+                        {a.details && <p className="text-[11px] text-[#555555] mt-1">{a.details}</p>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </main>
 
