@@ -27,8 +27,10 @@ export async function POST(req: NextRequest) {
   // Preferred path: direct dispatch to OpenClaw gateway (/v1/responses)
   const openclawBaseUrl = process.env.OPENCLAW_BASE_URL;
   const openclawToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+  const openclawBasicUser = process.env.OPENCLAW_BASIC_AUTH_USER;
+  const openclawBasicPass = process.env.OPENCLAW_BASIC_AUTH_PASS;
 
-  if (openclawBaseUrl && openclawToken) {
+  if (openclawBaseUrl && (openclawToken || (openclawBasicUser && openclawBasicPass))) {
     try {
       const dispatchPrompt = [
         "Mission Control assigned a task to you.",
@@ -40,11 +42,15 @@ export async function POST(req: NextRequest) {
         "Reply with a short acknowledgement and start execution.",
       ].join("\n");
 
+      const authHeader = openclawBasicUser && openclawBasicPass
+        ? `Basic ${Buffer.from(`${openclawBasicUser}:${openclawBasicPass}`).toString("base64")}`
+        : `Bearer ${openclawToken}`;
+
       const res = await fetch(`${openclawBaseUrl.replace(/\/$/, "")}/v1/responses`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${openclawToken}`,
+          Authorization: authHeader,
         },
         body: JSON.stringify({
           model: `agent:${task.assignee}`,

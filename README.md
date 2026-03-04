@@ -35,6 +35,9 @@ OPENCLAW_TASK_WEBHOOK_URL=https://mission-control-sandy-beta.vercel.app/api/open
 # Direct OpenClaw bridge (preferred)
 OPENCLAW_BASE_URL=https://openclaw.otoreach.online
 OPENCLAW_GATEWAY_TOKEN=your_openclaw_gateway_token
+# If your domain is protected by Basic Auth, use these instead (or alongside token)
+OPENCLAW_BASIC_AUTH_USER=your_basic_auth_username
+OPENCLAW_BASIC_AUTH_PASS=your_basic_auth_password
 
 # Optional fallback bridge
 OPENCLAW_FORWARD_WEBHOOK_URL=https://your-openclaw-bridge-endpoint.example/webhook
