@@ -32,9 +32,13 @@ export async function dispatchTaskToAgent(input: {
   }
 
   try {
+    const secret = process.env.OPENCLAW_WEBHOOK_SECRET;
     const res = await fetch(webhook, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-webhook-secret": secret } : {}),
+      },
       body: JSON.stringify(payload),
     });
 

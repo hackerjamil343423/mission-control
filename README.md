@@ -29,9 +29,14 @@ Create `.env.local`:
 ```bash
 NEON_DATABASE_URL=postgresql://...
 OPENCLAW_TASK_WEBHOOK_URL=http://localhost:3000/api/openclaw/ingest-task
+OPENCLAW_FORWARD_WEBHOOK_URL=https://your-openclaw-bridge-endpoint.example/webhook
+OPENCLAW_WEBHOOK_SECRET=your-shared-secret
 ```
 
-`OPENCLAW_TASK_WEBHOOK_URL` is optional, but required for real dispatch.
+- `OPENCLAW_TASK_WEBHOOK_URL`: where Mission Control sends assigned tasks.
+- Recommended for local: point it to this app (`/api/openclaw/ingest-task`).
+- `OPENCLAW_FORWARD_WEBHOOK_URL` (optional): real bridge that hands off to OpenClaw automation.
+- `OPENCLAW_WEBHOOK_SECRET` (optional): added as `x-webhook-secret` for simple webhook auth.
 
 ---
 
